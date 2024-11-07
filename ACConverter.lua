@@ -1,31 +1,31 @@
-addon.name      = 'ACConverter';
-addon.author    = 'NxN_Slite';
-addon.version   = '0.82';
-addon.desc      = 'Convert XML Ashitacast to LUA for LuAShitacast';
+addon.name      = 'ACConverter'
+addon.author    = 'NxN_Slite'
+addon.version   = '0.85'
+addon.desc      = 'Convert XML Ashitacast to LUA for LuAShitacast'
 require "common"
 
--- Constants
+-- LegagyAC config folder and temp file needed to extract sets
 local LEGACY_AC_FOLDER = string.format('%sconfig\\LegacyAC', AshitaCore:GetInstallPath())
 local TEMP_FILE_PATH = LEGACY_AC_FOLDER .. "/temp.xml"
 
 -- Function to get player info
 local function getPlayerInfo()
-    local Name = AshitaCore:GetMemoryManager():GetParty():GetMemberName(0)
-    local Job = AshitaCore:GetResourceManager():GetString("jobs.names_abbr", AshitaCore:GetMemoryManager():GetPlayer():GetMainJob())
-    local PlayerID = string.format(AshitaCore:GetMemoryManager():GetParty():GetMemberServerId(0))
-    return Name, Job, PlayerID
+    local name = AshitaCore:GetMemoryManager():GetParty():GetMemberName(0)
+    local job = AshitaCore:GetResourceManager():GetString("jobs.names_abbr", AshitaCore:GetMemoryManager():GetPlayer():GetMainJob())
+    local playerID = string.format(AshitaCore:GetMemoryManager():GetParty():GetMemberServerId(0))
+    return name, job, playerID
 end
 
 -- Function to generate LuaShitacastProfile path
-local function getLuaShitacastProfilePath(Name, PlayerID, Job)
-    return string.format('%sconfig\\addons\\luashitacast\\%s_%s\\%s.lua', AshitaCore:GetInstallPath(), Name, PlayerID, Job)
+local function getLuaShitacastProfilePath(name, playerID, job)
+    return string.format('%sconfig\\addons\\luashitacast\\%s_%s\\%s.lua', AshitaCore:GetInstallPath(), name, playerID, job)
 end
 
 -- Function to read the raw XML content from the source file
 local function readFile(path)
-    local file = io.open(path, "r")
+    local file, err = io.open(path, "r")
     if not file then
-        print("Error: Unable to open source file:" .. path)
+        print("Error: Unable to open source file: " .. path .. ". Error: " .. err)
         return nil
     end
     local content = file:read("*all")
@@ -61,9 +61,9 @@ end
 
 -- Function to write the content to temp.xml
 local function writeFile(path, content)
-    local file = io.open(path, "w")
+    local file, err = io.open(path, "w")
     if not file then
-        print("Error: Unable to write to temp file.")
+        print("Error: Unable to write to temp file: " .. path .. ". Error: " .. err)
         return false
     end
     file:write(content)
@@ -89,9 +89,9 @@ end
 
 -- Function to create and load profile if not present
 local function ensureLuaShitacastProfile()
-    local Name, Job, PlayerID = getPlayerInfo()
-    local LuaShitacastProfile = getLuaShitacastProfilePath(Name, PlayerID, Job)
-    local file = io.open(LuaShitacastProfile)
+    local name, job, playerID = getPlayerInfo()
+    local LuaShitacastProfile = getLuaShitacastProfilePath(name, playerID, job)
+    local file, err = io.open(LuaShitacastProfile, "r")
     if not file then
         print('LuAshita file not found. Creating profile')
         AshitaCore:GetChatManager():QueueCommand(1, '/lac newlua')
@@ -103,15 +103,20 @@ end
 
 -- Function to convert and process the XML profile
 local function convertAndProcessProfile()
-    local Name, Job = getPlayerInfo()
-    local LegacyACProfileName = string.format(Name .. "_" .. Job .. '.xml')
-    local sourceFilePath = LEGACY_AC_FOLDER .. "/" .. LegacyACProfileName
+    local name, job = getPlayerInfo()
+    local legacyACProfileName = string.format('%s_%s.xml', name, job)
+    local sourceFilePath = LEGACY_AC_FOLDER .. "/" .. legacyACProfileName
+
     ensureLuaShitacastProfile()
+
     local rawXmlContent = readFile(sourceFilePath)
     if not rawXmlContent then return end
+
     local foundSets = findAllSetsWithEquipment(rawXmlContent)
     if not foundSets then return end
+
     local setNames = findAllSetNames(rawXmlContent)
+
     local header = [[
 <ashitacast>
 <sets>
@@ -121,12 +126,16 @@ local function convertAndProcessProfile()
 </ashitacast>
 ]]
     local content = header .. table.concat(foundSets, "\n") .. "\n" .. footer
+
     if not writeFile(TEMP_FILE_PATH, content) then return end
+
     print("File created successfully at:", TEMP_FILE_PATH)
     coroutine.sleep(1)
+
     executeCommandsForSets(setNames)
 end
 
+-- Ashita events
 ashita.events.register('load', 'load_cb', function ()
     print("Welcome to the ACConverter Script!")
     print("This script helps convert and load sets from your XML profile.")
