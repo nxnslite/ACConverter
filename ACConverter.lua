@@ -1,6 +1,6 @@
 addon.name      = 'ACConverter';
 addon.author    = 'NxN_Slite';
-addon.version   = '0.80';
+addon.version   = '0.81';
 addon.desc      = 'Convert XML Ashitacast to LUA for LuAShitacast';
 require "common"
 
@@ -114,12 +114,6 @@ local function convertAndProcessProfile()
     local content = header .. table.concat(foundSets, "\n") .. "\n" .. footer
     if not writeFile(tempFilePath, content) then return end
     print("File created successfully at:", tempFilePath)
-    coroutine.sleep(1)
-    AshitaCore:GetChatManager():QueueCommand(1, '/la load temp.xml')
-    coroutine.sleep(1)
-    AshitaCore:GetChatManager():QueueCommand(1, '/la naked')
-    coroutine.sleep(1)
-    AshitaCore:GetChatManager():QueueCommand(1, '/la enable')
     coroutine.sleep(1)
     executeCommandsForSets(setNames)
 end
