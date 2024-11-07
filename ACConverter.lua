@@ -14,12 +14,6 @@ local LegacyACProfileName = string.format(name .. "_" .. job .. '.xml')
 local sourceFilePath = LegacyACProfileFolder .. "/" .. LegacyACProfileName
 local tempFilePath = LegacyACProfileFolder .. "/temp.xml"
 
--- Rest of the script...
-
--- Construct the full paths
-local sourceFilePath = LegacyACProfileFolder .. "/" .. LegacyACProfileName
-local tempFilePath = LegacyACProfileFolder .. "/temp.xml"
-
 -- Read the raw XML content from the source file
 local function readFile(path)
     local file = io.open(path, "r")
