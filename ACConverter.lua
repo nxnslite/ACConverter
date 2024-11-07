@@ -1,14 +1,27 @@
 addon.name      = 'ACConverter';
 addon.author    = 'NxN_Slite';
-addon.version   = '0.81';
+addon.version   = '0.82';
 addon.desc      = 'Convert XML Ashitacast to LUA for LuAShitacast';
 require "common"
 
+-- Constants
+local LEGACY_AC_FOLDER = string.format('%sconfig\\LegacyAC', AshitaCore:GetInstallPath())
+local TEMP_FILE_PATH = LEGACY_AC_FOLDER .. "/temp.xml"
 
--- Construct the full paths
-local LegacyACProfileFolder = string.format('%sconfig\\LegacyAC', AshitaCore:GetInstallPath())
-local tempFilePath = LegacyACProfileFolder .. "/temp.xml"
--- Read the raw XML content from the source file
+-- Function to get player info
+local function getPlayerInfo()
+    local Name = AshitaCore:GetMemoryManager():GetParty():GetMemberName(0)
+    local Job = AshitaCore:GetResourceManager():GetString("jobs.names_abbr", AshitaCore:GetMemoryManager():GetPlayer():GetMainJob())
+    local PlayerID = string.format(AshitaCore:GetMemoryManager():GetParty():GetMemberServerId(0))
+    return Name, Job, PlayerID
+end
+
+-- Function to generate LuaShitacastProfile path
+local function getLuaShitacastProfilePath(Name, PlayerID, Job)
+    return string.format('%sconfig\\addons\\luashitacast\\%s_%s\\%s.lua', AshitaCore:GetInstallPath(), Name, PlayerID, Job)
+end
+
+-- Function to read the raw XML content from the source file
 local function readFile(path)
     local file = io.open(path, "r")
     if not file then
@@ -46,7 +59,7 @@ local function findAllSetsWithEquipment(xmlContent)
     return sets
 end
 
--- Write the content to temp.xml
+-- Function to write the content to temp.xml
 local function writeFile(path, content)
     local file = io.open(path, "w")
     if not file then
@@ -76,11 +89,8 @@ end
 
 -- Function to create and load profile if not present
 local function ensureLuaShitacastProfile()
-	local Name = AshitaCore:GetMemoryManager():GetParty():GetMemberName(0)
-	local Job = AshitaCore:GetResourceManager():GetString("jobs.names_abbr", AshitaCore:GetMemoryManager():GetPlayer():GetMainJob())
-	local PlayerID = string.format(AshitaCore:GetMemoryManager():GetParty():GetMemberServerId(0))
--- Define the relative file paths
-	local LuaShitacastProfile = string.format('%sconfig\\addons\\luashitacast\\%s_%s\\%s.lua', AshitaCore:GetInstallPath(), Name, PlayerID, Job)
+    local Name, Job, PlayerID = getPlayerInfo()
+    local LuaShitacastProfile = getLuaShitacastProfilePath(Name, PlayerID, Job)
     local file = io.open(LuaShitacastProfile)
     if not file then
         print('LuAshita file not found. Creating profile')
@@ -93,10 +103,9 @@ end
 
 -- Function to convert and process the XML profile
 local function convertAndProcessProfile()
-	local Name = AshitaCore:GetMemoryManager():GetParty():GetMemberName(0)
-	local Job = AshitaCore:GetResourceManager():GetString("jobs.names_abbr", AshitaCore:GetMemoryManager():GetPlayer():GetMainJob())
-	local LegacyACProfileName = string.format(Name .. "_" .. Job .. '.xml')
-	local sourceFilePath = LegacyACProfileFolder .. "/" .. LegacyACProfileName
+    local Name, Job = getPlayerInfo()
+    local LegacyACProfileName = string.format(Name .. "_" .. Job .. '.xml')
+    local sourceFilePath = LEGACY_AC_FOLDER .. "/" .. LegacyACProfileName
     ensureLuaShitacastProfile()
     local rawXmlContent = readFile(sourceFilePath)
     if not rawXmlContent then return end
@@ -112,8 +121,8 @@ local function convertAndProcessProfile()
 </ashitacast>
 ]]
     local content = header .. table.concat(foundSets, "\n") .. "\n" .. footer
-    if not writeFile(tempFilePath, content) then return end
-    print("File created successfully at:", tempFilePath)
+    if not writeFile(TEMP_FILE_PATH, content) then return end
+    print("File created successfully at:", TEMP_FILE_PATH)
     coroutine.sleep(1)
     executeCommandsForSets(setNames)
 end
@@ -122,8 +131,8 @@ ashita.events.register('load', 'load_cb', function ()
     print("Welcome to the ACConverter Script!")
     print("This script helps convert and load sets from your XML profile.")
     print("Steps to use this script:")
-    print("1. Ensure that LegacyAC and LuaShitacast is loaded.")
-    print("2. Ensure that you have an newlua or program will create one")
+    print("1. Ensure that LegacyAC and LuaShitacast are loaded.")
+    print("2. Ensure that you have a newlua or the program will create one.")
     print("3. If any errors occur, they will be reported to help you troubleshoot.")
     print("Script is now ready and waiting for the /ACConverter command to start.")
 end)
