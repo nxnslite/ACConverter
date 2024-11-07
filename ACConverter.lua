@@ -6,8 +6,8 @@ addon.desc      = 'Convert XML Ashitacast to LUA for LuAShitacast';
 require "common"
 player = AshitaCore:GetMemoryManager():GetPlayer()
 -- Define the file paths
-local LegacyACProfileFolder = "C:\\Games\\PlayOnline\\SquareEnix\\Ashita-v4beta-main\\config\\LegacyAC"
-local LegacyACProfileName = "Nxnslite_THF.xml"
+local LegacyACProfileFolder = "C:\\Where\\is\\Ashita\\Config\\LegacyAC"
+local LegacyACProfileName = "PLayer_Job.xml"
 
 -- Construct the full paths
 local sourceFilePath = LegacyACProfileFolder .. "\\" .. LegacyACProfileName
