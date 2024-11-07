@@ -1,24 +1,18 @@
 addon.name      = 'ACConverter';
 addon.author    = 'NxN_Slite';
-addon.version   = '0.75';
+addon.version   = '0.80';
 addon.desc      = 'Convert XML Ashitacast to LUA for LuAShitacast';
 require "common"
-local name = AshitaCore:GetMemoryManager():GetParty():GetMemberName(0)
-local job = AshitaCore:GetResourceManager():GetString("jobs.names_abbr", AshitaCore:GetMemoryManager():GetPlayer():GetMainJob());
 
--- Define the relative file paths
-local LegacyACProfileFolder = string.format('%sconfig\\LegacyAC',AshitaCore:GetInstallPath())
-local LegacyACProfileName = string.format(name .. "_" .. job .. '.xml')
 
 -- Construct the full paths
-local sourceFilePath = LegacyACProfileFolder .. "/" .. LegacyACProfileName
+local LegacyACProfileFolder = string.format('%sconfig\\LegacyAC', AshitaCore:GetInstallPath())
 local tempFilePath = LegacyACProfileFolder .. "/temp.xml"
-
 -- Read the raw XML content from the source file
 local function readFile(path)
     local file = io.open(path, "r")
     if not file then
-        print("Error: Unable to open source file.")
+        print("Error: Unable to open source file:" .. path)
         return nil
     end
     local content = file:read("*all")
@@ -38,17 +32,13 @@ end
 
 -- Function to parse XML and extract all sets with their equipment
 local function findAllSetsWithEquipment(xmlContent)
-    -- Capture everything between <sets> and </sets>
     local setsContent = xmlContent:match("<sets>(.-)</sets>")
     if not setsContent then
         print("Error: Unable to capture sets content.")
         return nil
     end
-    -- Remove comments using regex
     setsContent = setsContent:gsub("<!--.- -->", "")
-    -- Remove 'baseset="YYY"'
     setsContent = setsContent:gsub(' baseset=".-"', "")
-    -- Split sets into individual sets
     local sets = {}
     for setContent in setsContent:gmatch("<set.->.-</set>") do
         table.insert(sets, setContent)
@@ -84,15 +74,64 @@ local function executeCommandsForSets(setNames)
     print("Importation of sets completed successfully.")
 end
 
+-- Function to create and load profile if not present
+local function ensureLuaShitacastProfile()
+	local Name = AshitaCore:GetMemoryManager():GetParty():GetMemberName(0)
+	local Job = AshitaCore:GetResourceManager():GetString("jobs.names_abbr", AshitaCore:GetMemoryManager():GetPlayer():GetMainJob())
+	local PlayerID = string.format(AshitaCore:GetMemoryManager():GetParty():GetMemberServerId(0))
+-- Define the relative file paths
+	local LuaShitacastProfile = string.format('%sconfig\\addons\\luashitacast\\%s_%s\\%s.lua', AshitaCore:GetInstallPath(), Name, PlayerID, Job)
+    local file = io.open(LuaShitacastProfile)
+    if not file then
+        print('LuAshita file not found. Creating profile')
+        AshitaCore:GetChatManager():QueueCommand(1, '/lac newlua')
+        coroutine.sleep(1)
+    else
+        file:close()
+    end
+end
+
+-- Function to convert and process the XML profile
+local function convertAndProcessProfile()
+	local Name = AshitaCore:GetMemoryManager():GetParty():GetMemberName(0)
+	local Job = AshitaCore:GetResourceManager():GetString("jobs.names_abbr", AshitaCore:GetMemoryManager():GetPlayer():GetMainJob())
+	local LegacyACProfileName = string.format(Name .. "_" .. Job .. '.xml')
+	local sourceFilePath = LegacyACProfileFolder .. "/" .. LegacyACProfileName
+    ensureLuaShitacastProfile()
+    local rawXmlContent = readFile(sourceFilePath)
+    if not rawXmlContent then return end
+    local foundSets = findAllSetsWithEquipment(rawXmlContent)
+    if not foundSets then return end
+    local setNames = findAllSetNames(rawXmlContent)
+    local header = [[
+<ashitacast>
+<sets>
+]]
+    local footer = [[
+</sets>
+</ashitacast>
+]]
+    local content = header .. table.concat(foundSets, "\n") .. "\n" .. footer
+    if not writeFile(tempFilePath, content) then return end
+    print("File created successfully at:", tempFilePath)
+    coroutine.sleep(1)
+    AshitaCore:GetChatManager():QueueCommand(1, '/la load temp.xml')
+    coroutine.sleep(1)
+    AshitaCore:GetChatManager():QueueCommand(1, '/la naked')
+    coroutine.sleep(1)
+    AshitaCore:GetChatManager():QueueCommand(1, '/la enable')
+    coroutine.sleep(1)
+    executeCommandsForSets(setNames)
+end
+
 ashita.events.register('load', 'load_cb', function ()
     print("Welcome to the ACConverter Script!")
     print("This script helps convert and load sets from your XML profile.")
     print("Steps to use this script:")
     print("1. Ensure that LegacyAC and LuaShitacast is loaded.")
-	print("2. Create a default lua using: /lac newlua")
+    print("2. Ensure that you have an newlua or program will create one")
     print("3. If any errors occur, they will be reported to help you troubleshoot.")
     print("Script is now ready and waiting for the /ACConverter command to start.")
-	
 end)
 
 ashita.events.register('text_in', 'text_in_cb', function (e)
@@ -105,42 +144,6 @@ ashita.events.register('command', 'command_cb', function (e)
         return
     end
     if (#args <= 2 and args[1]:any('/ACConverter')) then
-        -- Import the XML
-        local rawXmlContent = readFile(sourceFilePath)
-        if not rawXmlContent then return end
-
-        -- Finding all sets with their equipment
-        local foundSets = findAllSetsWithEquipment(rawXmlContent)
-        if not foundSets then return end
-
-        local setNames = findAllSetNames(rawXmlContent)
-
-        -- Create the content for temp.xml
-        local header = [[
-<ashitacast>
-<sets>
-]]
-        local footer = [[
-</sets>
-</ashitacast>
-]]
-        -- Combine header, found sets, and footer
-        local content = header .. table.concat(foundSets, "\n") .. "\n" .. footer
-        
-        if not writeFile(tempFilePath, content) then return end
-
-        print("File created successfully at:", tempFilePath)
-        coroutine.sleep(1)
-
-        -- Load the temp.xml file before executing commands for each set name
-        AshitaCore:GetChatManager():QueueCommand(1, '/la load temp.xml')
-        coroutine.sleep(1)
-        AshitaCore:GetChatManager():QueueCommand(1, '/la naked')
-        coroutine.sleep(1)
-        AshitaCore:GetChatManager():QueueCommand(1, '/la enable')
-        coroutine.sleep(1)
-
-        -- Execute commands for the found set names
-        executeCommandsForSets(setNames)
+        convertAndProcessProfile()
     end
 end)
