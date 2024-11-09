@@ -1,12 +1,13 @@
 addon.name      = 'ACConverter'
 addon.author    = 'NxN_Slite'
-addon.version   = '0.85'
+addon.version   = '0.86'
 addon.desc      = 'Convert XML Ashitacast to LUA for LuAShitacast'
 require "common"
 
 -- LegagyAC config folder and temp file needed to extract sets
-local LEGACY_AC_FOLDER = string.format('%sconfig\\LegacyAC', AshitaCore:GetInstallPath())
-local TEMP_FILE_PATH = LEGACY_AC_FOLDER .. "/temp.xml"
+local LegacyAC_FOLDER = string.format('%sconfig\\LegacyAC', AshitaCore:GetInstallPath())
+local TEMP_FILE = LegacyAC_FOLDER .. "/temp.xml"
+
 
 -- Function to get player info
 local function getPlayerInfo()
@@ -41,6 +42,16 @@ local function findAllSetNames(xmlContent)
         table.insert(setNames, setName)
     end
     return setNames
+end
+
+-- Function to check plugin and return status 
+function checkRequiredPlugin()
+	local pluginManager = AshitaCore:GetPluginManager() 
+	local isLoaded = pluginManager:IsLoaded("LegacyAC")
+	if not isLoaded then 
+		return false
+	end
+	return true
 end
 
 -- Function to parse XML and extract all sets with their equipment
@@ -105,7 +116,7 @@ end
 local function convertAndProcessProfile()
     local name, job = getPlayerInfo()
     local legacyACProfileName = string.format('%s_%s.xml', name, job)
-    local sourceFilePath = LEGACY_AC_FOLDER .. "/" .. legacyACProfileName
+    local sourceFilePath = LegacyAC_FOLDER .. "/" .. legacyACProfileName
 
     ensureLuaShitacastProfile()
 
@@ -127,9 +138,9 @@ local function convertAndProcessProfile()
 ]]
     local content = header .. table.concat(foundSets, "\n") .. "\n" .. footer
 
-    if not writeFile(TEMP_FILE_PATH, content) then return end
+    if not writeFile(TEMP_FILE, content) then return end
 
-    print("File created successfully at:", TEMP_FILE_PATH)
+    print("File created successfully at:", TEMP_FILE)
     coroutine.sleep(1)
 
     executeCommandsForSets(setNames)
@@ -156,6 +167,11 @@ ashita.events.register('command', 'command_cb', function (e)
         return
     end
     if (#args <= 2 and args[1]:any('/ACConverter')) then
-        convertAndProcessProfile()
+        if checkRequiredPlugin() then 
+			print("Plugins LegacyAC is loaded. Continuing with the script...") 
+			convertAndProcessProfile()
+		else
+			print("Script halted due to missing plugin : LegacyAC")
+		end
     end
 end)
