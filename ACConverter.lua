@@ -1,8 +1,9 @@
 addon.name      = 'ACConverter'
 addon.author    = 'NxN_Slite'
-addon.version   = '1.00'
+addon.version   = '1.02'
 addon.desc      = 'Convert XML Ashitacast to LUA for LuAShitacast'
 require "common"
+local chat = require("Chat")
 
 -- LegagyAC config folder and temp file needed to extract sets
 local LegacyAC_FOLDER = string.format('%sconfig\\LegacyAC', AshitaCore:GetInstallPath())
@@ -28,7 +29,7 @@ end
 local function readFile(path)
     local file, err = io.open(path, "r")
     if not file then
-        print("Error: Unable to open source file: " .. path .. ". Error: " .. err)
+        print(chat.header(addon.name):append(chat.error("Error: Unable to open source file: " .. path .. ". Error: " .. err)))
         return nil
     end
     local content = file:read("*all")
@@ -60,8 +61,8 @@ end
 local function findAllSetsWithEquipment(xmlContent)
     local setsContent = xmlContent:match("<sets>(.-)</sets>")
     if not setsContent then
-        print("Error: Unable to capture sets content.")
-        return nil
+       print(chat.header(addon.name):append(chat.error("Error: Unable to capture sets content.")))
+       return nil
     end
     setsContent = setsContent:gsub("<!--.- -->", "")
     setsContent = setsContent:gsub(' baseset=".-"', "")
@@ -76,7 +77,7 @@ end
 local function writeFile(path, content)
     local file, err = io.open(path, "w")
     if not file then
-        print("Error: Unable to write to temp file: " .. path .. ". Error: " .. err)
+        print(chat.header(addon.name):append(chat.error("Error: Unable to write to temp file: " .. path .. ". Error: " .. err)))
         return false
     end
     file:write(content)
@@ -104,12 +105,12 @@ local function executeCommandsForSets(setNames)
         coroutine.sleep(1)
 				-- Check if the new set is added 
 		if not isSetAdded(setName) then 
-			print("Error: Failed to add set: " .. setName)
-			print("Make sure LuAshitacast is loaded")
+			print(chat.header(addon.name):append(chat.error("Error: Failed to add set: " .. setName)))
+			print(chat.header(addon.name):append(chat.error("Make sure LuAshitacast is loaded")))
 			return
 		end
     end
-    print("Importation of sets completed successfully.")
+    print(chat.header(addon.name):append(chat.color1(79, "Importation of sets completed successfully.")))
 end
 
 function setAllPath()
@@ -123,11 +124,11 @@ end
 local function ensureLuaShitacastProfile()	
     local file, err = io.open(LuAshitaProfileFile, "r")
     if not file then
-        print('LuAshita file not found. Creating profile')
+        print(chat.header(addon.name):append(chat.warning('LuAshita file not found. Creating profile')))
         AshitaCore:GetChatManager():QueueCommand(1, '/lac newlua')
         coroutine.sleep(1)
 		if not readFile(LuAshitaProfileFile) then
-			print('Unable to find Profile. Make sure LuAshitacast is loaded')
+			print(chat.header(addon.name):append(chat.error("Unable to find Profile. Make sure LuAshitacast is loaded")))
 			return false
 		else
 			return true
@@ -162,8 +163,7 @@ local function convertAndProcessProfile()
 	local content = header .. table.concat(foundSets, "\n") .. "\n" .. footer
 
 	if not writeFile(TEMP_FILE, content) then return end
-
-	print("File created successfully at:", TEMP_FILE)
+	print(chat.header(addon.name):append(chat.color1(79, 'File created successfully at: ' .. TEMP_FILE)))
 	coroutine.sleep(1)
 
 	executeCommandsForSets(setNames)
@@ -172,13 +172,13 @@ end
 
 -- Ashita events
 ashita.events.register('load', 'load_cb', function ()
-    print("Welcome to the ACConverter Script!")
-    print("This script helps convert and load sets from your XML profile.")
-    print("Steps to use this script:")
-    print("1. Ensure that LegacyAC and LuaShitacast are loaded.")
-    print("2. Ensure that you have a newlua or the program will create one.")
-    print("3. If any errors occur, they will be reported to help you troubleshoot.")
-    print("Script is now ready and waiting for the /ACConverter command to start.")
+    print(chat.header(addon.name):append(chat.message("Welcome to the ACConverter Script!")))
+	print(chat.header(addon.name):append(chat.message("This addon helps convert XLM sets to Lua sets")))
+	print(chat.header(addon.name):append(chat.message("Steps to use this script:")))
+	print(chat.header(addon.name):append(chat.message("1. Ensure that LegacyAC and LuaShitacast are loaded.")))
+	print(chat.header(addon.name):append(chat.message("2. Ensure that you have a newlua or the program will create one.")))
+	print(chat.header(addon.name):append(chat.message("3. If any errors occur, they will be reported to help you troubleshoot.")))
+	print(chat.header(addon.name):append(chat.color1(79, "Script is now ready and waiting for the /ACConverter command to start.")))
 end)
 
 ashita.events.register('command', 'command_cb', function (e)
@@ -188,11 +188,11 @@ ashita.events.register('command', 'command_cb', function (e)
     end
     if (#args <= 2 and args[1]:any('/ACConverter')) then
         if checkRequiredPlugin() then 
-			print("Plugins LegacyAC is loaded. Continuing with the script...") 
+			print(chat.header(addon.name):append(chat.color1(79, "Plugins LegacyAC is loaded. Continuing with the script...")))
 			setAllPath()
 			convertAndProcessProfile()
 		else
-			print("Script halted due to missing plugin : LegacyAC")
+			print(chat.header(addon.name):append(chat.error('Script halted due to missing plugin: "LegacyAC"')))			
 		end
     end
 end)
