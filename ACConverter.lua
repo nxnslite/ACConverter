@@ -1,12 +1,14 @@
 addon.name      = 'ACConverter'
 addon.author    = 'NxN_Slite'
-addon.version   = '0.86'
+addon.version   = '1.00'
 addon.desc      = 'Convert XML Ashitacast to LUA for LuAShitacast'
 require "common"
 
 -- LegagyAC config folder and temp file needed to extract sets
 local LegacyAC_FOLDER = string.format('%sconfig\\LegacyAC', AshitaCore:GetInstallPath())
+local LegacyAC_Path = ""
 local TEMP_FILE = LegacyAC_FOLDER .. "/temp.xml"
+local LuAshitaProfileFile = ""
 
 
 -- Function to get player info
@@ -19,7 +21,7 @@ end
 
 -- Function to generate LuaShitacastProfile path
 local function getLuaShitacastProfilePath(name, playerID, job)
-    return string.format('%sconfig\\addons\\luashitacast\\%s_%s\\%s.lua', AshitaCore:GetInstallPath(), name, playerID, job)
+    LuAshitaProfileFile = string.format('%sconfig\\addons\\luashitacast\\%s_%s\\%s.lua', AshitaCore:GetInstallPath(), name, playerID, job)
 end
 
 -- Function to read the raw XML content from the source file
@@ -82,6 +84,12 @@ local function writeFile(path, content)
     return true
 end
 
+-- Function to check if a set is added to the LuAshitacast profile
+local function isSetAdded(setName)
+    local profileContent = readFile(LuAshitaProfileFile)
+    return profileContent and profileContent:find(setName, 1, true) ~= nil
+end
+
 -- Function to execute commands for each set name with a 5-second interval
 local function executeCommandsForSets(setNames)
     AshitaCore:GetChatManager():QueueCommand(1, '/la load temp.xml')
@@ -94,56 +102,72 @@ local function executeCommandsForSets(setNames)
         coroutine.sleep(1)
         AshitaCore:GetChatManager():QueueCommand(1, string.format('/lac addset %s', setName))
         coroutine.sleep(1)
+				-- Check if the new set is added 
+		if not isSetAdded(setName) then 
+			print("Error: Failed to add set: " .. setName)
+			print("Make sure LuAshitacast is loaded")
+			return
+		end
     end
     print("Importation of sets completed successfully.")
 end
 
+function setAllPath()
+	local name, job, playerID = getPlayerInfo()
+    getLuaShitacastProfilePath(name, playerID, job)	
+	local legacyACProfileName = string.format('%s_%s.xml', name, job)	
+    LegacyAC_Path = LegacyAC_FOLDER .. "/" .. legacyACProfileName	
+end
+
 -- Function to create and load profile if not present
-local function ensureLuaShitacastProfile()
-    local name, job, playerID = getPlayerInfo()
-    local LuaShitacastProfile = getLuaShitacastProfilePath(name, playerID, job)
-    local file, err = io.open(LuaShitacastProfile, "r")
+local function ensureLuaShitacastProfile()	
+    local file, err = io.open(LuAshitaProfileFile, "r")
     if not file then
         print('LuAshita file not found. Creating profile')
         AshitaCore:GetChatManager():QueueCommand(1, '/lac newlua')
         coroutine.sleep(1)
+		if not readFile(LuAshitaProfileFile) then
+			print('Unable to find Profile. Make sure LuAshitacast is loaded')
+			return false
+		else
+			return true
+		end
     else
         file:close()
+		return true
     end
 end
 
 -- Function to convert and process the XML profile
 local function convertAndProcessProfile()
-    local name, job = getPlayerInfo()
-    local legacyACProfileName = string.format('%s_%s.xml', name, job)
-    local sourceFilePath = LegacyAC_FOLDER .. "/" .. legacyACProfileName
+    if not ensureLuaShitacastProfile() then
+		return false
+	end
+	local rawXmlContent = readFile(LegacyAC_Path)
+	if not rawXmlContent then return end
 
-    ensureLuaShitacastProfile()
+	local foundSets = findAllSetsWithEquipment(rawXmlContent)
+	if not foundSets then return end
 
-    local rawXmlContent = readFile(sourceFilePath)
-    if not rawXmlContent then return end
+	local setNames = findAllSetNames(rawXmlContent)
 
-    local foundSets = findAllSetsWithEquipment(rawXmlContent)
-    if not foundSets then return end
-
-    local setNames = findAllSetNames(rawXmlContent)
-
-    local header = [[
+	local header = [[
 <ashitacast>
 <sets>
 ]]
-    local footer = [[
+	local footer = [[
 </sets>
 </ashitacast>
 ]]
-    local content = header .. table.concat(foundSets, "\n") .. "\n" .. footer
+	local content = header .. table.concat(foundSets, "\n") .. "\n" .. footer
 
-    if not writeFile(TEMP_FILE, content) then return end
+	if not writeFile(TEMP_FILE, content) then return end
 
-    print("File created successfully at:", TEMP_FILE)
-    coroutine.sleep(1)
+	print("File created successfully at:", TEMP_FILE)
+	coroutine.sleep(1)
 
-    executeCommandsForSets(setNames)
+	executeCommandsForSets(setNames)
+	
 end
 
 -- Ashita events
@@ -157,10 +181,6 @@ ashita.events.register('load', 'load_cb', function ()
     print("Script is now ready and waiting for the /ACConverter command to start.")
 end)
 
-ashita.events.register('text_in', 'text_in_cb', function (e)
-    return false
-end)
-
 ashita.events.register('command', 'command_cb', function (e)
     local args = e.command:args()
     if (#args == 0 or not args[1]:any('/ACConverter')) then
@@ -169,6 +189,7 @@ ashita.events.register('command', 'command_cb', function (e)
     if (#args <= 2 and args[1]:any('/ACConverter')) then
         if checkRequiredPlugin() then 
 			print("Plugins LegacyAC is loaded. Continuing with the script...") 
+			setAllPath()
 			convertAndProcessProfile()
 		else
 			print("Script halted due to missing plugin : LegacyAC")
